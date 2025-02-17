@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())  // UUID for the user ID
+  email     String   @unique
+  name      String
+  role      String   // "faculty" or "admin"
+  forms     Form[]
+  createdAt DateTime @default(now())
+}
+
+
+model OTP {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  otp       String
+  createdAt DateTime @default(now())
+}
+
+model Form {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?
+  questions   Json      // Stores questions as JSON
+  link        String    @unique  // Unique link for public access
+  responses   Response[]
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+ 
+  createdAt   DateTime  @default(now())
+}
+
+model Response {
+  id        Int      @id @default(autoincrement()) // Unique identifier for each response
+  answers   Json     // Stores the answers submitted for the form
+  formId    Int      // References the Form this response belongs to
+  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade) // Relation to the Form model
+  email     String?  // Email of the user who submitted the response (optional)
+  createdAt DateTime @default(now()) // Timestamp of when the response was created
+}
+
+
+
