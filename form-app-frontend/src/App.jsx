@@ -6,6 +6,7 @@ import Home from './components/Home';
 import AdminLogin from './components/AdminLogin';
 import PublicForm from './components/PublicForm';
 import ViewResponse from './components/ViewResponse';
+import AfterSubmission from './components/AfterSubmission';
 //import NotFound from './components/NotFound'; // Add a 404 page
 
 // Lazy load components for better performance
@@ -21,17 +22,22 @@ function App() {
       
       <Routes>
         {/* Public Routes */}
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={
+          // <ProtectedRoute>
+          //   <Home />
+          // // </ProtectedRoute>
+          <Home />
+        } />
         <Route path="/admin" element={<AdminLogin />} />
         <Route path="/form/:link" element={<PublicForm />} />
         <Route path="/responses/:formId" element={<ViewResponse />} />
-
+         <Route path="/submitted" element={<AfterSubmission/>}/>
         {/* Protected Routes */}
         <Route
           path="/faculty"
           element={
             <ProtectedRoute>
-              <Suspense fallback={<div>Loading...</div>}>
+              <Suspense fallback={<div className='absolute left-0 top-0 w-[100%] flex items-center justify-center min-h-screen bg-gray-100'>Loading...</div>}>
                 <FacultyDashboard />
               </Suspense>
             </ProtectedRoute>
@@ -41,7 +47,7 @@ function App() {
           path="/admin/dashboard"
           element={
             <ProtectedRoute>
-              <Suspense fallback={<div>Loading...</div>}>
+              <Suspense fallback={<div className='absolute left-0 top-0 w-[100%] flex items-center justify-center min-h-screen bg-gray-100'>Loading...</div>}>
                 <AdminDashboard />
               </Suspense>
             </ProtectedRoute>

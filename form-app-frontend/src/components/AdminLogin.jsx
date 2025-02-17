@@ -16,6 +16,7 @@ const AdminLogin = () => {
       });
 
       localStorage.setItem('token', res.data.token);
+      localStorage.setItem('role', 'admin');
       toast.success('Login successful! Redirecting...');
       setTimeout(() => {
         window.location.href = '/admin/dashboard';

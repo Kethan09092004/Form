@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { GoogleLogin } from '@react-oauth/google';
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { GoogleLogin } from "@react-oauth/google";
+import AfterSubmission from "./AfterSubmission";
 
 const PublicForm = () => {
-  const { link } = useParams();
+  const { link } = useParams(); // `link` will be the unique identifier (e.g., "em83hvqz1nf")
+  const navigate = useNavigate();
   const [form, setForm] = useState(null);
   const [answers, setAnswers] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [userEmail, setUserEmail] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  
+  const [isAuthenticated, setIsAuthenticated] = useState("");
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -19,7 +22,7 @@ const PublicForm = () => {
         const data = await response.json();
         setForm(data);
       } catch (error) {
-        console.error('Error fetching form:', error);
+        console.error("Error fetching form:", error);
       }
     };
 
@@ -35,26 +38,25 @@ const PublicForm = () => {
     setIsSubmitting(true);
 
     if (!userEmail) {
-      alert('You must be signed in to submit a response.');
+      alert("You must be signed in to submit a response.");
       setIsSubmitting(false);
       return;
     }
 
     try {
-      await fetch('http://localhost:5000/api/responses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("http://localhost:5000/api/responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           formId: form.id,
           answers,
           email: userEmail,
         }),
       });
-
-      alert('Response submitted successfully!');
+      navigate("/submitted", { state: { title: form.title, link } });
     } catch (error) {
-      console.error('Error submitting response:', error);
-      alert('Failed to submit response');
+      console.error("Error submitting response:", error);
+      alert("Failed to submit response");
     } finally {
       setIsSubmitting(false);
     }
@@ -62,15 +64,16 @@ const PublicForm = () => {
 
   const handleLoginSuccess = (response) => {
     const { credential } = response;
-    const user = JSON.parse(atob(credential.split('.')[1])); // Decode the JWT and get the payload
+    const user = JSON.parse(atob(credential.split(".")[1])); // Decode the JWT and get the payload
     setUserEmail(user.email);
+
     setIsAuthenticated(true);
-    localStorage.setItem('userEmail', user.email);
+    localStorage.setItem("userEmail", user.email);
   };
 
   const handleLoginFailure = (error) => {
-    console.error('Login failed:', error);
-    alert('Google login failed. Please try again!');
+    console.error("Login failed:", error);
+    alert("Google login failed. Please try again!");
   };
 
   if (!isAuthenticated) {
@@ -106,7 +109,7 @@ const PublicForm = () => {
               <label className="block text-lg font-medium mb-2">
                 {index + 1}. {question.text}
               </label>
-              {question.type === 'text' && (
+              {question.type === "text" && (
                 <input
                   type="text"
                   className="w-full px-4 py-2 border rounded-lg"
@@ -114,14 +117,14 @@ const PublicForm = () => {
                   required={question.required}
                 />
               )}
-              {question.type === 'paragraph' && (
+              {question.type === "paragraph" && (
                 <textarea
                   className="w-full px-4 py-2 border rounded-lg"
                   onChange={(e) => handleInputChange(question.id, e.target.value)}
                   required={question.required}
                 />
               )}
-              {['radio', 'checkbox'].includes(question.type) && (
+              {["radio", "checkbox"].includes(question.type) && (
                 <div className="space-y-2">
                   {question.options.map((option, i) => (
                     <div key={i} className="flex items-center">
@@ -138,7 +141,7 @@ const PublicForm = () => {
                   ))}
                 </div>
               )}
-              {question.type === 'dropdown' && (
+              {question.type === "dropdown" && (
                 <select
                   className="w-full px-4 py-2 border rounded-lg"
                   onChange={(e) => handleInputChange(question.id, e.target.value)}
@@ -159,7 +162,7 @@ const PublicForm = () => {
             disabled={isSubmitting}
             className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
           >
-            {isSubmitting ? 'Submitting...' : 'Submit'}
+            {isSubmitting ? "Submitting..." : "Submit"}
           </button>
         </form>
       </div>

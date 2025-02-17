@@ -11,6 +11,7 @@ const Home = () => {
       });
       console.log(res.data);
       localStorage.setItem('token', res.data.token);
+      localStorage.setItem('role', 'faculty');
       toast.success('Login successful! Redirecting...');
       setTimeout(() => {
         window.location.href = '/faculty';
