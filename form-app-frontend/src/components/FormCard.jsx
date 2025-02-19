@@ -72,55 +72,56 @@ const FormCard = ({ form, onDelete }) => {
 
 
   return (
-    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
-     
-      <div className='flex  gap-4'>
-        <div>
-        <h3 className="text-lg font-semibold text-gray-800 truncate">{form.title}</h3>
-      
-      <p className="text-sm text-gray-500 mt-2">
-        Created: {new Date(form.createdAt).toLocaleDateString()}
-      </p>
-        </div>
+<div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
+  {/* Title */}
+  <h3 className="text-lg font-semibold text-gray-800 truncate">{form.title}</h3>
 
-      <div className='mt-3 flex items-center gap-2 justify-between border-t pt-3'>
-      <button 
-          onClick={() => window.open(`/responses/${form.id}`)}
-          className="text-blue-600 hover:text-blue-700 flex items-center"
-        >
-         👁️ Response
-        </button>
-        <button 
-          onClick={() => handleFormDownloadType(form._id)}
-          className="text-green-600 hover:text-green-700 flex items-center"
-        >
-          <FaFileDownload />
-        </button>
-      </div>
-      </div>
-      
-      <div className="mt-4 flex items-center justify-between border-t pt-4">
-        <a
-          href={form.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-700 flex items-center"
-        >
-          🔗 Form Link
-        </a>
-        <button 
-          onClick={() => setIsPreviewOpen(true)}
-          className="text-blue-600 hover:text-blue-700 flex items-center"
-        >
-          👁️ Preview
-        </button>
-        <button 
-          onClick={() => setIsDeleteModalOpen(true)}
-          className="text-red-600 hover:text-red-700 flex items-center"
-        >
-          🗑️ Delete
-        </button>
-      </div>
+  {/* CreatedAt */}
+  <p className="text-sm text-gray-500 mt-2">
+    Created: {new Date(form.createdAt).toLocaleDateString()}
+  </p>
+
+  {/* Response and Download Buttons */}
+  <div className="mt-3 flex items-center gap-4">
+    <button 
+      onClick={() => window.open(`/responses/${form.id}`)}
+      className="text-blue-600 hover:text-blue-700 flex items-center"
+    >
+      👁️ Response
+    </button>
+    <button 
+      onClick={() => handleFormDownloadType(form._id)}
+      className="text-green-600 hover:text-green-700 flex items-center"
+    >
+      <FaFileDownload />
+    </button>
+  </div>
+
+  {/* Form Link, Preview, and Delete Buttons */}
+  <div className="mt-4 flex items-center gap-4 border-t pt-4">
+    <a
+      href={form.link}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-600 hover:text-blue-700 flex items-center"
+    >
+      🔗 Form Link
+    </a>
+    <button 
+      onClick={() => setIsPreviewOpen(true)}
+      className="text-blue-600 hover:text-blue-700 flex items-center"
+    >
+      👁️ Preview
+    </button>
+    <button 
+      onClick={() => setIsDeleteModalOpen(true)}
+      className="text-red-600 hover:text-red-700 flex items-center"
+    >
+      🗑️ Delete
+    </button>
+  </div>
+
+
 
       {isPreviewOpen && (
         <FormPreviewModal form={form} onClose={() => setIsPreviewOpen(false)} />

@@ -2,7 +2,7 @@ import React from 'react';
 
 const FormPreviewModal = ({ form, onClose }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 max-h-[650px] overflow-x-auto scrollbar-hide">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ">
       <div className="bg-white rounded-lg p-6 max-w-2xl w-full">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Preview Form</h2>
@@ -13,7 +13,7 @@ const FormPreviewModal = ({ form, onClose }) => {
             ✖️
           </button>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[650px] overflow-x-auto scrollbar-hide">
           <h3 className="text-lg font-semibold">{form.title}</h3>
           <p className="text-sm text-gray-500">{form.description}</p>
           {form.questions.map((question, index) => (

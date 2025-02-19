@@ -297,7 +297,7 @@ const FacultyDashboard = () => {
                       <label className="text-sm text-gray-600">Required</label>
                     </div>
 
-                    <button 
+                    <button   
                       onClick={addQuestion}
                       className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
                     >

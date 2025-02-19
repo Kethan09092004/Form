@@ -11,6 +11,7 @@ const PDFDocument = require('pdfkit');
 const { Parser } = require('json2csv');
 const prisma = new PrismaClient();
 const app = express();
+const sharp = require('sharp');
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Middleware
@@ -557,215 +558,574 @@ app.get('/api/admin/responses/download/csv/:formId', async (req, res) => {
   }
 });
 
+const drawLogo = async (doc) => {
+  // SVG Logo
+  const logoSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="70" height="70" viewBox="0 0 70 70">
+      <circle cx="35" cy="35" r="32" fill="#00ACC1"/>
+      <circle cx="35" cy="35" r="25" fill="none" stroke="white" stroke-width="2"/>
+      <path d="M25,35 C25,25 45,25 45,35 S25,45 45,35" stroke="white" fill="none" stroke-width="2"/>
+    </svg>
+  `;
+
+  const logoBuffer = Buffer.from(logoSvg);
+
+  // Convert SVG to PNG using sharp
+  const pngBuffer = await sharp(logoBuffer).png().toBuffer();
+
+  // Embed the PNG image into the PDF
+  doc.image(pngBuffer, 50, 40, { width: 80 });
+};
 
 app.get('/api/admin/responses/download/pdf/:formId', async (req, res) => {
   const { formId } = req.params;
+  
   try {
-    // Fetch responses for the form
     const responses = await prisma.response.findMany({
       where: { formId: parseInt(formId) },
     });
-    // Fetch form details to get questions
+
     const form = await prisma.form.findUnique({
       where: { id: parseInt(formId) },
     });
+
     if (!responses || !form) {
       return res.status(404).json({ error: 'Responses or form not found' });
     }
-    // Parse questions from the form
+
     let questions = [];
     try {
-      if (typeof form.questions === 'string') {
-        questions = JSON.parse(form.questions);
-      } else {
-        questions = form.questions;
-      }
+      questions = typeof form.questions === 'string' ? JSON.parse(form.questions) : form.questions;
     } catch (error) {
       console.error('Error parsing questions:', error);
       return res.status(500).json({ error: 'Failed to parse form questions' });
     }
 
-    // Create PDF document
-    const doc = new PDFDocument({ 
-      margin: 50,
-      autoFirstPage: false
-    });
-    
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
     const filePath = `./form_${formId}_responses.pdf`;
     const writeStream = fs.createWriteStream(filePath);
     doc.pipe(writeStream);
 
-    // Add first page
-    doc.addPage();
-    
-    // Store original y position after header
-    let startY;
-    
-    // Add header
-    doc.fontSize(16).text('LAKIREDDY BALI REDDY COLLEGE OF ENGINEERING', { align: 'center' });
-    doc.moveDown();
-    
-    // Add form title
-    doc.fontSize(14).text(`Form: ${form.title}`, { align: 'center' });
-    doc.moveDown(2);
-    
-    startY = doc.y;
-    
-    // Define table constants
-    const pageWidth = doc.page.width - 100;
-    const columnWidths = {
-      email: pageWidth * 0.4,
-      response: pageWidth * 0.6
-    };
+    // Draw logo on the first page
+    await drawLogo(doc);
 
-    // Track total pages
-    let currentPage = 1;
-    
-    // Process each question
-    questions.forEach((question, qIndex) => {
-      // Check if we need a new page
-      if (doc.y > doc.page.height - 150) {
-        // Add page number to current page before creating new one
-        addPageNumberAndBorder(doc, currentPage);
+    responses.forEach((response, index) => {
+      if (index > 0) {
         doc.addPage();
-        currentPage++;
-        doc.y = startY;
+        // Draw logo on the new page
+        drawLogo(doc);
       }
 
-      // Display question (left-aligned)
-      doc.fontSize(12).text(
-        `Question ${qIndex + 1}: ${question.text || question.label || question.question || 'Unknown question'}`,
-        50,
-        doc.y,
-        { 
-          align: 'left',
-          underline: true,
-          width: pageWidth
-        }
+      // Get user's email from the response
+      const userEmail = response.email || 'No email provided';
+
+      // Header Text
+      doc.fontSize(12).font('Helvetica-Bold').text('LBRCE', 150, 50);
+      doc.fontSize(10).fillColor('#666666').text(`| ${userEmail}`, 150, 70);
+
+      // Survey Title
+      doc.fontSize(12).fillColor('black').text(
+        form.title,
+        doc.page.width - 250, 50,
+        { align: 'right' }
       );
-      doc.moveDown();
-      
-      // If there are responses, create a table
-      if (responses.length > 0) {
-        // Table headers
-        drawTableRow(doc, ['Email', 'Response'], columnWidths, true);
-        
-        // Table rows
-        responses.forEach((response, rIndex) => {
-          // Check if we need a new page before drawing row
-          if (doc.y > doc.page.height - 100) {
-            // Add page number to current page before creating new one
-            addPageNumberAndBorder(doc, currentPage);
-            doc.addPage();
-            currentPage++;
-            doc.y = startY;
-            // Redraw header row on new page
-            drawTableRow(doc, ['Email', 'Response'], columnWidths, true);
-          }
 
-          try {
-            let answers = response.answers;
-            if (typeof answers === 'string') {
-              answers = JSON.parse(answers);
-            }
-            
-            let answer;
-            if (question.id && answers[question.id]) {
-              answer = answers[question.id];
-            } else if (answers[qIndex]) {
-              answer = answers[qIndex];
-            } else if (question.key && answers[question.key]) {
-              answer = answers[question.key];
-            }
-            
-            const answerText = typeof answer === 'object' ? JSON.stringify(answer) : String(answer || 'No response');
-            drawTableRow(doc, [response.email || 'No email', answerText], columnWidths, false);
-            
-          } catch (error) {
-            console.error(`Error processing response ${rIndex} for question ${qIndex}:`, error);
-            drawTableRow(doc, [response.email || 'No email', 'Error retrieving response'], columnWidths, false);
-          }
-        });
-      } else {
-        doc.fontSize(10).text('No responses recorded for this question.', { italic: true });
+      // Date & User Info
+      doc.fontSize(10).text('19/03/2022 11:22', doc.page.width - 250, 100, { align: 'right' });
+      doc.text('Google Forms User', doc.page.width - 250, 115, { align: 'right' });
+
+      // Draw a separator line
+      doc.moveTo(50, 140).lineTo(doc.page.width - 50, 140).stroke();
+
+      let yPosition = 160;
+
+      let answers = {};
+      try {
+        answers = typeof response.answers === 'string' ? JSON.parse(response.answers) : response.answers;
+      } catch (error) {
+        console.error('Error parsing answers:', error);
+        answers = {};
       }
-      
-      doc.moveDown(2);
+
+      // Function to draw a table row
+      const drawRow = (question, answer) => {
+        if (yPosition > doc.page.height - 60) {
+          doc.addPage();
+          yPosition = 50;
+          // Draw logo on the new page
+          drawLogo(doc);
+        }
+
+        // Set font
+        doc.fontSize(10).fillColor('black');
+
+        // Draw question
+        doc.text(question, 50, yPosition, { width: doc.page.width * 0.6, continued: true });
+
+        // Draw answer
+        doc.text(answer || '', doc.page.width * 0.6 + 10, yPosition, { width: doc.page.width * 0.4 });
+
+        yPosition += 20;
+
+        // Draw line separator
+        doc.moveTo(50, yPosition).lineTo(doc.page.width - 50, yPosition).stroke();
+        yPosition += 10;
+      };
+
+      // Process each question
+      questions.forEach((question) => {
+        const questionText = question.text || question.label || '';
+        if (!questionText) return;
+
+        let answer = '';
+        if (question.id && answers[question.id]) {
+          answer = answers[question.id];
+        } else if (question.key && answers[question.key]) {
+          answer = answers[question.key];
+        }
+
+        drawRow(questionText, answer);
+      });
     });
 
-    // Add page number and border to the last page
-    addPageNumberAndBorder(doc, currentPage);
-    
     doc.end();
-    
+
     writeStream.on('finish', () => {
       res.download(filePath, `form_${formId}_responses.pdf`, (err) => {
         if (err) console.error('Download error:', err);
         fs.unlinkSync(filePath);
       });
     });
+
   } catch (error) {
     console.error('Error generating PDF:', error);
     res.status(500).json({ error: 'Failed to generate PDF' });
   }
 });
 
-// Helper function to draw a table row
-function drawTableRow(doc, cells, widths, isHeader) {
-  const y = doc.y;
-  let x = 50;
-  
-  if (isHeader) {
-    doc.fillColor('black').fontSize(10).font('Helvetica-Bold');
-  } else {
-    doc.fillColor('black').fontSize(9).font('Helvetica');
-  }
-  
-  const rowHeight = 20;
-  
-  if (isHeader) {
-    doc.fillOpacity(0.1).fillColor('gray').rect(x, y, widths.email + widths.response, rowHeight).fill();
-    doc.fillOpacity(1).fillColor('black');
-  }
-  
-  cells.forEach((cell, i) => {
-    const width = Object.values(widths)[i];
-    doc.rect(x, y, width, rowHeight).stroke();
-    
-    const cellText = cell.toString().substring(0, 100);
-    doc.text(cellText, x + 5, y + 5, {
-      width: width - 10,
-      align: 'left'
+
+app.get("/api/admin/responses/download/userpdf", async (req, res) => {
+  try {
+    const { formId, userEmail, submittedAt } = req.query;
+
+    if (!formId || !userEmail) {
+      return res.status(400).json({ error: "formId and userEmail are required" });
+    }
+
+    // Fetch the response for the given formId and userEmail
+    const response = await prisma.response.findFirst({
+      where: { formId: parseInt(formId), email: userEmail },
+    });
+
+    if (!response) {
+      return res.status(404).json({ error: "Response not found for this user" });
+    }
+
+    // Fetch form details
+    const form = await prisma.form.findUnique({
+      where: { id: parseInt(formId) },
+    });
+
+    if (!form) {
+      return res.status(404).json({ error: "Form not found" });
+    }
+
+    // Parse questions from form
+    let questions = [];
+    try {
+      questions = typeof form.questions === "string" ? JSON.parse(form.questions) : form.questions;
+    } catch (error) {
+      console.error("Error parsing questions:", error);
+      return res.status(500).json({ error: "Failed to parse form questions" });
+    }
+
+    // Parse answers
+    let answers = {};
+    try {
+      answers = typeof response.answers === "string" ? JSON.parse(response.answers) : response.answers;
+    } catch (error) {
+      console.error("Error parsing answers:", error);
+      answers = {};
+    }
+
+    // Generate file path for the PDF
+    const filePath = `./user_${formId}_${userEmail.replace(/[@.]/g, "_")}.pdf`;
+
+    // Create PDF
+    const doc = new PDFDocument({ 
+      margin: 50, 
+      size: "A4",
+      bufferPages: true // Enable buffer pages for better page management
     });
     
-    x += width;
-  });
-  
-  doc.y = y + rowHeight;
-  return doc;
-}
+    const writeStream = fs.createWriteStream(filePath);
+    doc.pipe(writeStream);
 
-// Helper function to add page number and border
-function addPageNumberAndBorder(doc, pageNumber) {
-  // Save the current Y position
-  const currentY = doc.y;
-  
-  // Add border
-  doc.rect(20, 20, doc.page.width - 40, doc.page.height - 40).stroke();
-  
-  // Add page number at the bottom
-  // doc.fontSize(10)
-  //    .text(
-  //      `Page ${pageNumber}`,
-  //      0,
-  //      doc.page.height - 50,
-  //      { align: 'center' }
-  //    );
-  
-  // Restore the Y position
-  doc.y = currentY;
-}
+    // Constants for layout
+    const pageHeight = doc.page.height;
+    const contentWidth = doc.page.width - 100; // Total available width
+    const questionWidth = contentWidth * 0.6;
+    const answerWidth = contentWidth * 0.3;
+    const padding = 20;
+    const headerHeight = 140; // Height reserved for header
+    const footerMargin = 50; // Margin from bottom of page
 
+    // Function to add header to each page
+    const addHeader = () => {
+      doc.fontSize(12).font("Helvetica-Bold").text("LBRCE", 180, 50);
+      doc.fontSize(10).fillColor("#666666").text(`| ${userEmail}`, 180, 70);
+      
+      // Survey Title
+      doc.fontSize(12).fillColor("black").text(form.title, doc.page.width - 250, 50, { align: "right" });
+      // Date & User Info
+      doc.fontSize(10).text(new Date(submittedAt).toLocaleString(), doc.page.width - 250, 100, { align: "right" });
+      doc.text("Google Forms User", doc.page.width - 250, 115, { align: "right" });
+      
+      // Draw a separator line
+      doc.moveTo(50, 140).lineTo(doc.page.width - 50, 140).stroke();
+
+      return headerHeight;
+    };
+
+     let yPosition = addHeader();
+
+    // Function to check if we need a new page
+    const checkNewPage = (contentHeight) => {
+      const remainingSpace = pageHeight - yPosition - footerMargin;
+      if (remainingSpace < contentHeight) {
+        doc.addPage();
+        yPosition = addHeader();
+        return true;
+      }
+      return false;
+    };
+
+    // Function to draw a table row with proper text wrapping and pagination
+    const drawRow = (question, answer) => {
+      doc.fontSize(10).fillColor("black");
+
+      // Calculate heights of both question and answer with wrapping
+      const questionHeight = doc.heightOfString(question, {
+        width: questionWidth,
+        align: 'left'
+      });
+
+      const answerHeight = doc.heightOfString(answer || "N/A", {
+        width: answerWidth,
+        align: 'left'
+      });
+
+      const rowHeight = Math.max(questionHeight, answerHeight) + 10; // Added padding
+
+      // Check if we need a new page before drawing this row
+      checkNewPage(rowHeight);
+
+      // Draw question and answer
+// Add margin/padding on top
+const topMargin = 5; // Adjust this value as needed
+yPosition += topMargin;
+
+doc.text(question, 50, yPosition, { width: questionWidth, align: 'left' });
+doc.text(answer || "N/A", 50 + questionWidth + padding, yPosition, { width: answerWidth, align: 'left' });
+
+      // Update yPosition for next row
+      yPosition += rowHeight;
+
+      // Draw separator line if there's enough space
+      if (yPosition < pageHeight - footerMargin) {
+        doc.moveTo(50, yPosition - 5)
+           .lineTo(doc.page.width - 50, yPosition - 5)
+           .stroke();
+      }
+    };
+
+    // Process each question
+    questions.forEach((question) => {
+      const questionText = question.text || question.label || "";
+      if (!questionText) return;
+
+      let answer = "";
+      if (question.id && answers[question.id]) {
+        answer = answers[question.id];
+      } else if (question.key && answers[question.key]) {
+        answer = answers[question.key];
+      }
+
+      drawRow(questionText, answer);
+    });
+
+    // Finalize the PDF
+    doc.end();
+
+    writeStream.on("finish", () => {
+      res.download(filePath, `user_${formId}_response.pdf`, (err) => {
+        if (err) console.error("Download error:", err);
+        fs.unlinkSync(filePath);
+      });
+    });
+
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+    res.status(500).json({ error: "Failed to generate PDF" });
+  }
+});
+// app.get('/api/admin/responses/download/pdf/:formId', async (req, res) => {
+//   const { formId } = req.params;
+  
+//   try {
+//     const responses = await prisma.response.findMany({
+//       where: { formId: parseInt(formId) },
+//     });
+
+//     const form = await prisma.form.findUnique({
+//       where: { id: parseInt(formId) },
+//     });
+
+//     if (!responses || !form) {
+//       return res.status(404).json({ error: 'Responses or form not found' });
+//     }
+
+//     let questions = [];
+//     try {
+//       questions = typeof form.questions === 'string' ? JSON.parse(form.questions) : form.questions;
+//     } catch (error) {
+//       console.error('Error parsing questions:', error);
+//       return res.status(500).json({ error: 'Failed to parse form questions' });
+//     }
+
+//     const doc = new PDFDocument({ margin: 50, size: 'A4' });
+//     const filePath = `./form_${formId}_responses.pdf`;
+//     const writeStream = fs.createWriteStream(filePath);
+//     doc.pipe(writeStream);
+
+//     // SVG Logo
+//     const logoSvg = `
+//       <svg xmlns="http://www.w3.org/2000/svg" width="70" height="70" viewBox="0 0 70 70">
+//         <circle cx="35" cy="35" r="32" fill="#00ACC1"/>
+//         <circle cx="35" cy="35" r="25" fill="none" stroke="white" stroke-width="2"/>
+//         <path d="M25,35 C25,25 45,25 45,35 S25,45 45,35" stroke="white" fill="none" stroke-width="2"/>
+//       </svg>
+//     `;
+
+//     const logoBuffer = Buffer.from(logoSvg);
+
+//     // Convert SVG to PNG using sharp
+//     const pngBuffer = await sharp(logoBuffer).png().toBuffer();
+
+//     // Embed the PNG image into the PDF
+//     doc.image(pngBuffer, 50, 40, { width: 80 });
+
+//     responses.forEach((response, index) => {
+//       if (index > 0) doc.addPage();
+
+//       // Get user's email from the response
+//       const userEmail = response.email || 'No email provided';
+
+//       // Header Text
+//       doc.fontSize(12).font('Helvetica-Bold').text('LBRCE', 150, 50);
+//       doc.fontSize(10).fillColor('#666666').text(`| ${userEmail}`, 150, 70);
+
+//       // Survey Title
+//       doc.fontSize(12).fillColor('black').text(
+//         'Survey form for Vision, Mission, PEO and PSO N°:\n23',
+//         doc.page.width - 250, 50,
+//         { align: 'right' }
+//       );
+
+//       // Date & User Info
+//       doc.fontSize(10).text('19/03/2022 11:22', doc.page.width - 250, 100, { align: 'right' });
+//       doc.text('Google Forms User', doc.page.width - 250, 115, { align: 'right' });
+
+//       // Draw a separator line
+//       doc.moveTo(50, 140).lineTo(doc.page.width - 50, 140).stroke();
+
+//       let yPosition = 160;
+
+//       let answers = {};
+//       try {
+//         answers = typeof response.answers === 'string' ? JSON.parse(response.answers) : response.answers;
+//       } catch (error) {
+//         console.error('Error parsing answers:', error);
+//         answers = {};
+//       }
+
+//       // Function to draw a table row
+//       const drawRow = (question, answer) => {
+//         if (yPosition > doc.page.height - 60) {
+//           doc.addPage();
+//           yPosition = 50;
+//         }
+
+//         // Set font
+//         doc.fontSize(10).fillColor('black');
+
+//         // Draw question
+//         doc.text(question, 50, yPosition, { width: doc.page.width * 0.6, continued: true });
+
+//         // Draw answer
+//         doc.text(answer || '', doc.page.width * 0.6 + 10, yPosition, { width: doc.page.width * 0.4 });
+
+//         yPosition += 20;
+
+//         // Draw line separator
+//         doc.moveTo(50, yPosition).lineTo(doc.page.width - 50, yPosition).stroke();
+//         yPosition += 10;
+//       };
+
+//       // Process each question
+//       questions.forEach((question) => {
+//         const questionText = question.text || question.label || '';
+//         if (!questionText) return;
+
+//         let answer = '';
+//         if (question.id && answers[question.id]) {
+//           answer = answers[question.id];
+//         } else if (question.key && answers[question.key]) {
+//           answer = answers[question.key];
+//         }
+
+//         drawRow(questionText, answer);
+//       });
+//     });
+
+//     doc.end();
+
+//     writeStream.on('finish', () => {
+//       res.download(filePath, `form_${formId}_responses.pdf`, (err) => {
+//         if (err) console.error('Download error:', err);
+//         fs.unlinkSync(filePath);
+//       });
+//     });
+
+//   } catch (error) {
+//     console.error('Error generating PDF:', error);
+//     res.status(500).json({ error: 'Failed to generate PDF' });
+//   }
+// });
+// app.get('/api/admin/responses/download/pdf/:formId', async (req, res) => {
+//   const { formId } = req.params;
+  
+//   try {
+//     const responses = await prisma.response.findMany({
+//       where: { formId: parseInt(formId) },
+//     });
+
+//     const form = await prisma.form.findUnique({
+//       where: { id: parseInt(formId) },
+//     });
+
+//     if (!responses || !form) {
+//       return res.status(404).json({ error: 'Responses or form not found' });
+//     }
+
+//     let questions = [];
+//     try {
+//       questions = typeof form.questions === 'string' ? JSON.parse(form.questions) : form.questions;
+//     } catch (error) {
+//       console.error('Error parsing questions:', error);
+//       return res.status(500).json({ error: 'Failed to parse form questions' });
+//     }
+
+//     const doc = new PDFDocument({ margin: 50, size: 'A4' });
+//     const filePath = `./form_${formId}_responses.pdf`;
+//     const writeStream = fs.createWriteStream(filePath);
+//     doc.pipe(writeStream);
+
+//     // Load logo
+//     const logoPath = path.join(__dirname, 'assets', 'logo.png'); 
+//     if (fs.existsSync(logoPath)) {
+//       doc.image(logoPath, 50, 30, { width: 80 });
+//     } else {
+//       console.error("Logo file not found:", logoPath);
+//     }
+
+//     responses.forEach((response, index) => {
+//       if (index > 0) doc.addPage();
+
+//       // Get user's email from the response
+//       const userEmail = response.email || 'No email provided';
+
+//       // Header Text
+//       doc.fontSize(14).font('Helvetica-Bold').text('LBRCE', 150, 40);
+//       doc.fontSize(10).fillColor('#666666').text(`| ${userEmail}`, 150, 60);
+
+//       // Survey Title
+//       doc.fontSize(12).fillColor('black').text(
+//         'Survey form for Vision, Mission, PEO and PSO N°:\n23',
+//         doc.page.width - 250, 40,
+//         { align: 'right' }
+//       );
+
+//       // Date & User Info
+//       doc.fontSize(10).text('19/03/2022 11:22', doc.page.width - 250, 90, { align: 'right' });
+//       doc.text('Google Forms User', doc.page.width - 250, 105, { align: 'right' });
+
+//       // Draw a separator line
+//       doc.moveTo(50, 130).lineTo(doc.page.width - 50, 130).stroke();
+
+//       let yPosition = 150;
+
+//       let answers = {};
+//       try {
+//         answers = typeof response.answers === 'string' ? JSON.parse(response.answers) : response.answers;
+//       } catch (error) {
+//         console.error('Error parsing answers:', error);
+//         answers = {};
+//       }
+
+//       // Function to draw a table row
+//       const drawRow = (question, answer) => {
+//         if (yPosition > doc.page.height - 60) {
+//           doc.addPage();
+//           yPosition = 50;
+//         }
+
+//         // Set font
+//         doc.fontSize(10).fillColor('black');
+
+//         // Draw question
+//         doc.text(question, 50, yPosition, { width: doc.page.width * 0.4 });
+
+//         // Draw answer (Right aligned)
+//         doc.text(answer || '', doc.page.width * 0.5, yPosition, { width: doc.page.width * 0.4 });
+
+//         yPosition += 20;
+
+//         // Draw line separator
+//         doc.moveTo(50, yPosition).lineTo(doc.page.width - 50, yPosition).stroke();
+//         yPosition += 10;
+//       };
+
+//       // Process each question
+//       questions.forEach((question) => {
+//         const questionText = question.text || question.label || '';
+//         if (!questionText) return;
+
+//         let answer = '';
+//         if (question.id && answers[question.id]) {
+//           answer = answers[question.id];
+//         } else if (question.key && answers[question.key]) {
+//           answer = answers[question.key];
+//         }
+
+//         drawRow(questionText, answer);
+//       });
+//     });
+
+//     doc.end();
+
+//     writeStream.on('finish', () => {
+//       res.download(filePath, `form_${formId}_responses.pdf`, (err) => {
+//         if (err) console.error('Download error:', err);
+//         fs.unlinkSync(filePath);
+//       });
+//     });
+
+//   } catch (error) {
+//     console.error('Error generating PDF:', error);
+//     res.status(500).json({ error: 'Failed to generate PDF' });
+//   }
+// });
 
 
 // Start server
