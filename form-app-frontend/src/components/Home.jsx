@@ -1,20 +1,34 @@
+import { useEffect } from 'react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 import { Toaster, toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 const Home = () => {
+  const navigate = useNavigate();
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+  useEffect(() => {
+    // Check if the user is already logged in
+    const token = localStorage.getItem('token');
+    if (token) {
+      navigate('/faculty'); // Redirect if token exists
+    }
+  }, [navigate]);
+
   const handleLogin = async (credentialResponse) => {
     try {
-      console.log("hii");
       const res = await axios.post('http://localhost:5000/api/auth/google', {
         token: credentialResponse.credential,
       });
+
       console.log(res.data);
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('role', 'faculty');
+
       toast.success('Login successful! Redirecting...');
       setTimeout(() => {
-        window.location.href = '/faculty';
+        navigate('/faculty'); // Correct way to redirect
       }, 1500);
     } catch (error) {
       console.error('Error logging in:', error);
@@ -23,7 +37,7 @@ const Home = () => {
   };
 
   return (
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+    <GoogleOAuthProvider clientId={clientId}>
       <div className="absolute left-0 top-0 w-[100%] min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <Toaster
           position="top-center"

@@ -1,14 +1,23 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { FiMail, FiLock, FiArrowRight } from 'react-icons/fi';
 import { Toaster, toast } from 'react-hot-toast';
 import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
+import { useNavigate } from 'react-router-dom';
 
 const AdminLogin = () => {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const navigate=useNavigate();
+   useEffect(() => {
+      // Check if the user is already logged in
+      const token = localStorage.getItem('token');
+      if (token) {
+        navigate('/admin/dashboard'); // Redirect if token exists
+      }
+    }, [navigate]);
   const handleLogin = async (credentialResponse) => {
     try {
       const res = await axios.post('http://localhost:5000/api/auth/admin/google', {
