@@ -15,7 +15,7 @@ const sharp = require('sharp');
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:5173',methods: ['GET', 'POST'],
+app.use(cors({ origin: 'http://localhost:5173',methods: ['GET', 'POST','PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'], credentials: true }));
 app.use(express.json());
 
@@ -773,13 +773,14 @@ app.get("/api/admin/responses/download/userpdf", async (req, res) => {
     // Function to add header to each page
     const addHeader = () => {
       doc.fontSize(12).font("Helvetica-Bold").text("LBRCE", 180, 50);
-      doc.fontSize(10).fillColor("#666666").text(`| ${userEmail}`, 180, 70);
+      doc.fontSize(10).fillColor("#666666").text(`| rahul786@gmail.com
+`, 180, 70);
       
       // Survey Title
       doc.fontSize(12).fillColor("black").text(form.title, doc.page.width - 250, 50, { align: "right" });
       // Date & User Info
-      doc.fontSize(10).text(new Date(submittedAt).toLocaleString(), doc.page.width - 250, 100, { align: "right" });
-      doc.text("Google Forms User", doc.page.width - 250, 115, { align: "right" });
+      doc.fontSize(10).text("22/12/2023 ", doc.page.width - 250, 100, { align: "right" });
+      //doc.text("Google Forms User", doc.page.width - 250, 115, { align: "right" });
       
       // Draw a separator line
       doc.moveTo(50, 140).lineTo(doc.page.width - 50, 140).stroke();
